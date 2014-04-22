@@ -12,6 +12,13 @@ function TestScene6() {
         this.bullet_layer = new createjs.Container();
         this.bullet_pool = new BulletPool();
         this.update_instance();
+        
+        var self = this;
+        this.instance.addEventListener('animationend', function(e) {
+            if(e.name == 'release') {
+                self.releasing = false;
+            }
+        });
     }
     
     Player.prototype = {
@@ -22,6 +29,7 @@ function TestScene6() {
         shoot_direction: 0,
         
         move_speed: 0.2,
+        move_speed_focus: 0.1,
         
         bullet_speed: 0.128,
         bullet_min_radius: 5,
@@ -33,6 +41,9 @@ function TestScene6() {
         stage_margin: 100,
         
         hp: 100,
+        focused: false,
+        // cannot focus during the release animation
+        releasing: false,
           
         update_bullets: function(dt) {
             var tmp = this.bullets2;
@@ -53,6 +64,22 @@ function TestScene6() {
             this.bullets2 = this.bullets;
             this.bullets = tmp;
         },
+        
+        focus: function() {
+            if(!this.focused && !this.releasing) {
+                this.focused = true;
+                this.instance.gotoAndPlay('focus');
+            }
+        },
+         
+        release: function() {
+            if(this.focused) {
+                this.focused = false;
+                this.releasing = true;
+                this.instance.gotoAndPlay('release');
+            }
+        },
+        
         shoot: function(dt) {
             this.shoot_timer += dt;
             while(this.shoot_timer > this.shoot_interval) {
@@ -113,7 +140,7 @@ function TestScene6() {
                 frames: [[115,0,46,96,0,25,44],[0,0,61,96,0,30,44],[0,96,61,96,0,33,44],[61,96,46,112,0,25,60],[107,96,48,99,0,24,47],[61,0,54,96,0,26,44],[155,96,46,96,0,25,44]],
                 animations: {
                     idle: [1],
-                    hold: [0],
+                    focus: [0],
                     release: [1, 6, 'idle']
                 }   
             }), 'idle'
@@ -134,7 +161,7 @@ function TestScene6() {
                 frames: [[172,0,62,101,0,27.95,50],[103,303,90,101,0,29.95,50],[150,202,90,101,0,31.95,50],[154,101,70,101,0,21.95,50],[0,0,172,101,0,26.95,50],[0,101,154,101,0,15.95,50],[0,202,150,101,0,19.95,50],[0,303,103,101,0,18.95,50]],
                 animations: {
                     idle: [0],
-                    hold: [1, 2, false],
+                    focus: [1, 2, false],
                     release: [3, 7, 'idle']
                 }   
             }), 'idle'
@@ -149,11 +176,11 @@ function TestScene6() {
     // shoot action
     this.shoot_timer = this.shoot_interval + 1;
     
-    this.ready_text = new createjs.Text();
-    this.ready_text.font = '100px Georgia';
-    this.ready_text.alpha = 0;
-    this.ready_text.visible = false;
-    this.ready_text.color = 'white';
+    this.message_board = new createjs.Text();
+    this.message_board.font = '100px Georgia';
+    this.message_board.alpha = 0;
+    this.message_board.visible = false;
+    this.message_board.color = 'white';
     
     var L = {
         new_record: -1,
@@ -165,7 +192,7 @@ function TestScene6() {
     // the protocol is naive, assuming two parties trusting each other
     
     this.enemy_found = false;
-    this.game_started = false;
+    this.round_started = false;
             
     var self = this;
     function check_msg_id(msg) {
@@ -201,13 +228,12 @@ function TestScene6() {
         // also works as pong
         if(!loopback && !check_msg_id(msg)) return;
         
-        if(self.game_started)
+        if(self.round_started)
             return;
-        console.log(msg);
         if(msg.count == -1) {
             self.start_fight();
         } else {
-            var rt = self.ready_text;
+            var rt = self.message_board;
             rt.text = (msg.count == 0) ? 'Fight!' : msg.count;
             rt.alpha = 1;
             rt.visible = true;
@@ -305,40 +331,31 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         this.stage = stage;
         stage.addChild(this.bg_img);
         stage.addChild(this.player.bullet_layer);
+        stage.addChild(this.player.instance);
         stage.addChild(this.enemy.bullet_layer);
         stage.addChild(this.enemy.instance);
-        stage.addChild(this.player.instance);
-        stage.addChild(this.ready_text);
+        stage.addChild(this.message_board);
     },
     
     off_stage: function(stage) {
         stage.removeChild(this.bg_img);
-        stage.removeChild(this.bullet_layer);
+        stage.removeChild(this.player.bullet_layer);
+        stage.removeChild(this.player.instance);
         stage.removeChild(this.enemy.bullet_layer);
         stage.removeChild(this.enemy.instance);
-        stage.removeChild(this.player.instance);
-        stage.removeChild(this.ready_text);
+        stage.removeChild(this.message_board);
     },
         
     start_fight: function() {
         console.log('Fight started.');
-        this.game_started = true;
+        this.round_started = true;
         this.round_start_time = Date.now();
         // last (round) time when we have received a sync message
         this.last_sync_time = 0;
         
-        var rt = this.ready_text;
+        var rt = this.message_board;
         rt.alpha = 0;
         createjs.Tween.removeTweens(rt);
-        
-        // sprite animation
-        var self = this;
-        var sprite_animation = function() {
-            self.enemy.instance.gotoAndPlay('attack');
-            if(self.game_started)
-                setTimeout(sprite_animation, 1000 + Math.random() * 1000);
-        }
-        sprite_animation();
     },
 
     check_player_hit: function() {
@@ -383,10 +400,20 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
             e.shoot_direction = (msg.d > Math.PI) ? (msg.d - Math.PI) : (msg.d + Math.PI);
             e.hp = msg.hp;
             this.last_sync_time = Math.max(this.last_sync_time, msg.t);
+            
+            if(msg.f && !e.focused) {
+                e.focused = true;
+                e.instance.gotoAndPlay('focus');
+            }
+            
+            if(!msg.f && e.focused) {
+                e.focused = false;
+                e.instance.gotoAndPlay('release');
+            }
         }
         
         // clear buffer
-        e.length = 0;
+        eb.length = 0;
     },
     check_local_input: function(dt) {
         var player = this.player;
@@ -394,7 +421,7 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         while(player.shoot_direction > Math.PI * 2)
             player.shoot_direction -= Math.PI * 2;
       
-        var move_distance = player.move_speed * dt;
+        var move_distance = (player.focused ? player.move_speed_focus : player.move_speed) * dt;
         if(player.x > move_distance 
             && WLGame.input.is_held('move_left')) {
             player.x -= move_distance;
@@ -411,6 +438,12 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
             player.y += move_distance;
         }
         
+        if(this.round_started && WLGame.input.is_pressed('action')) {
+            player.focus();
+        }
+        if(this.round_started && WLGame.input.is_released('action')) {
+            player.release();
+        }
     },
     battle_mainloop: function(dt) {
         this.process_sync_events(dt);
@@ -419,7 +452,7 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         this.player.update(dt);
         this.enemy.update(dt);
         
-        if(this.game_started) {
+        if(this.round_started) {
             this.player.shoot(dt);
             this.enemy.shoot(dt);
             if(this.check_player_hit()) {
@@ -442,9 +475,10 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         TogetherJS.send({type:'sync', 
                          x:Math.round(this.player.x), 
                          y:Math.round(this.player.y), 
-                         d:this.player.shoot_direction,
+                         d:this.player.shoot_direction.toFixed(3),
                          hp:Math.round(this.player.hp),
                          id:this.player.id,
+                         f:(this.player.focused ? 1 : 0),
                          t:Date.now()-this.round_start_time
                         });
         

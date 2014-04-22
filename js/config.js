@@ -13,7 +13,7 @@ var Config = {
             move_right: [[0, 0.5], 15],
             move_up: [[1, -0.5], 12],
             move_down: [[1, 0.5], 13],
-            action: [0],
+            action: [0, 2],
         }
     }
 };
