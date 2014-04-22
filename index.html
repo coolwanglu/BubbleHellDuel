@@ -1,0 +1,156 @@
+<!doctype html>
+<!--  vim: set sw=2 ts=2 et : --> 
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Bubble Hell Duel</title>
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        //GA
+    </script>
+  </head>
+  <body>
+    <a href="https://github.com/coolwanglu/BubbleHellDuel">
+       <img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_orange_ff7600.png" alt="Fork me on GitHub">
+    </a>
+    <div id="github-star">
+      <iframe src="http://ghbtns.com/github-btn.html?user=coolwanglu&repo=BubbleHellDuel&type=watch&count=true&size=large" allowtransparency="true" frameborder="0" scrolling="0" width="170" height="30"></iframe>
+    </div>
+    <div class="container">
+      <div class="jumbotron">
+        <h1>珠璣鬥</h1>
+        <h2>Bubble Hell Duel</h2>
+      </div>
+      <a id="link-matching" class="btn" href="#random_matching" target="_blank">Random matching</a>
+      <a id="link-friend" class="btn" href="#" target="_blank">Play with your friend</a>
+      <div id="game-container" class="container">
+        <canvas id="game-canvas1" class="game-canvas" width="800" height="600"></canvas>
+        <div id="game-dialog-frame"></div>
+        <div id="game-loading-indicator" style="text-align:center">
+          <div class="game-loading-container">
+            <div class="game-loading"></div>
+            <div id="game-loading-text">Loading...</div>
+          </div>
+        </div>
+          
+        <div id="game-title-menu" class="game-title-menu"></div>
+      </div>
+      <br>
+      <br>
+      <div class="footer">
+        <p>© <a target="_blank" href="http://coolwanglu.github.io/">Lu Wang</a> 2014</p>
+      
+      </div>
+    </div>
+    
+    <script src="http://code.createjs.com/createjs-2013.12.12.min.js"></script>
+    <script src="http://code.createjs.com/movieclip-0.7.1.min.js"></script>
+    <script src="js/compatibility.js"></script>
+    
+    <script>
+        (function(){
+            var is_random_matching = (location.hash.indexOf('random_matching') != -1);
+            var e1 = document.getElementById('link-friend');
+            var e2 = document.getElementById('link-matching');
+            if(!is_random_matching) {
+                e1.innerHTML = 'Play with another friend';
+                e1.classList.add('btn-success');
+            } else {
+                e2.innerHTML = 'Find another match';
+                e2.classList.add('btn-success');
+            }
+            e1.addEventListener('click', function() {
+                window.close();
+            });
+            e2.addEventListener('click', function() {
+                window.close();
+            });
+            
+            //configure TogetherJS
+            var TJS = window.TJS = {
+                ready: false
+            };
+           
+            
+            var config = {
+                siteName: 'Bubble Hell Duel',
+                toolName: 'Multiplayer',
+                dontShowClicks: true,
+                enableShortcut: false,
+                suppressInvite: false,
+                suppressJoinConfirmation: true,
+                disableWebRTC: true,
+                autoStart: true,
+                includeHashInUrl: false,
+                findRoom: is_random_matching ? {prefix: 'BubbleHellDuel', max:2} : null,
+                //ignoreMessages: ['cursor-update', 'keydown', 'scroll-update', 'app.sync'],
+                ignoreMessages: true,
+                on: {
+                    'ready': function() { 
+                        TJS.ready = true; 
+                        
+                        // show the link, for convenience
+                        if(!is_random_matching && !TogetherJS.startup._joinShareId)
+                            document.getElementById('togetherjs-share-button').click();
+                    },
+                    'close': function() { TJS.ready = false; },
+                }
+            };
+            for(var k in config)
+                window['TogetherJSConfig_'+k] = config[k];
+            
+            //hack: we don't save session
+            sessionStorage.removeItem('togetherjs-session.status');
+        })();
+    </script>
+      
+
+    <script src="https://togetherjs.com/togetherjs-min.js"></script>
+    <script src="wlgame.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var asset_list = [];
+            var image_path = 'data/images/';
+            [
+                { id:'bg', src: 'desert_dawn.jpg' },
+                { id:'marisa', src: 'marisa.png' },
+                { id:'reimu', src: 'reimu.png' }
+            ].forEach(function(path) {
+                if(typeof path == 'object') {
+                    path.src = image_path + path.src;
+                    asset_list.push(path);
+                } else 
+                    asset_list.push(image_path + path);
+            });
+            
+            
+            var queue = new createjs.LoadQueue(true);
+            queue.on('progress', function(e) {
+                var text = '...';
+                if(e.loaded > 0)
+                    text += (e.loaded * 100).toFixed(1) + '%';
+                document.getElementById('game-loading-text').innerHTML = text;
+            });
+            queue.on('complete', function() {
+                console.log('loaded');
+                var s = document.getElementById('game-loading-indicator').style;
+                createjs.Tween.get({opacity: 1})
+                    .to({opacity: 0}, 1000)
+                    .wait(1000)
+                    .call(function() {
+                        s.display = 'none';
+                        window.WLGame = new Game(queue);
+                        WLGame.run();
+                    })
+                    .addEventListener('change', function(e) {
+                        s.opacity = e.target.target.opacity;
+                    });
+            });
+            queue.loadManifest(asset_list);
+        });
+    </script>
+  </body>
+</html>
