@@ -1,10 +1,4 @@
-/*
- a bullet curtain game
- with the scripting engine
- with multiplayer
- */
-
-function TestScene6() {
+function Arena() {
     function Player(config) {
         Util.extend(this, config);
         this.bullets = [];
@@ -40,13 +34,14 @@ function TestScene6() {
         focused_shoot_interval: 100,
         focused_bullet_radius: 5,
         focused_bullet_angular_speed: Math.PI / 1000,
-        focused_bullet_release_speed: 0.2,
+        focused_bullet_release_speed: 0.5,
         focused_bullet_count_limit: 30,
         
         // this is not the actual pixel, see update_bullets()
-        focused_circle_radius: 10,
+        focused_circle_radius: 7,
         
         radius: 5,
+        // bullets that are outside the screen but within this distance are kept
         stage_margin: 100,
         
         hp: 100,
@@ -56,13 +51,15 @@ function TestScene6() {
           
         update_bullets: function(dt) {
             var m = this.stage_margin;
+            var sw = WLGame.stage_width;
+            var sh = WLGame.stage_height;
             var bl = this.bullets;
             for(var i = 0, l = bl.length; i < l; ) {
                 var b = bl[i];
                 b.update_physics(dt);
                 b.update_graphics();
-                if((b.x < -m) || (b.x > WLGame.stage.canvas.width + m)
-                   || (b.y < -m) || (b.y > WLGame.stage.canvas.height + m)) {
+                if((b.x < -m) || (b.x > sw + m)
+                   || (b.y < -m) || (b.y > sh + m)) {
                     b.off_stage();
                     b.recycle();
                     // remove b from bl
@@ -83,56 +80,47 @@ function TestScene6() {
             for(var i = 0, l = fbl.length; i < l; ++i) {
                 var b = fbl[i];
                 b.life_time += dt;
-                b.revolution_angle += fbas * dt;
+                // focused bullets are rotating in the opposite direction
+                b.revolution_angle -= fbas * dt;
                 var r = Math.log(1+b.life_time) * fcr;
-
+                
                 b.x = this.x + r * Math.cos(b.revolution_angle);
                 b.y = this.y + r * Math.sin(b.revolution_angle);
                 b.update_graphics();
             }
         },
         
-        // return if succedeed
         focus: function() {
-            if(!this.focused && !this.releasing) {
-                this.focused = true;
-                this.instance.gotoAndPlay('focus');
-                return true;
-            }
-            return false;
+            this.focused = true;
+            this.instance.gotoAndPlay('focus');
         },
     
-        // return if succedeed
         release: function() {
-            if(this.focused) {
-                this.focused = false;
-                this.releasing = true;
-                this.instance.gotoAndPlay('release');
-                
-                // release focused bullets: convert them into normal ones
-                var fbs = this.focused_bullets;
-                var fbrs = this.focused_bullet_release_speed * (1+(1+Math.cos(Date.now() % 2000))/2);
-                var ox = this.opponent.x;
-                var oy = this.opponent.y;
-                for(var i = 0, l = fbs.length; i < l; ++i) {
-                    var b = fbs[i];
-                    var dx = ox - b.x;
-                    var dy = oy - b.y;
-                    var dr = Math.sqrt(dx * dx + dy * dy);
-                    if(Math.abs(dr) < Const.EPS) {
-                        var dir = Math.random() * Math.PI * 2;
-                        b.vx = fbrs * Math.cos(dir);
-                        b.vy = fbrs * Math.sin(dir);
-                    } else {
-                        b.vx = fbrs * dx / dr;
-                        b.vy = fbrs * dy / dr;
-                    }
-                    this.bullets.push(b);
+            this.focused = false;
+            this.releasing = true;
+            this.instance.gotoAndPlay('release');
+
+            // release focused bullets: convert them into normal ones
+            var fbs = this.focused_bullets;
+            var fbrs = this.focused_bullet_release_speed * (1+Math.random());
+            var ox = this.opponent.x;
+            var oy = this.opponent.y;
+            for(var i = 0, l = fbs.length; i < l; ++i) {
+                var b = fbs[i];
+                var dx = ox - b.x;
+                var dy = oy - b.y;
+                var dr = Math.sqrt(dx * dx + dy * dy);
+                if(Math.abs(dr) < Const.EPS) {
+                    var dir = Math.random() * Math.PI * 2;
+                    b.vx = fbrs * Math.cos(dir);
+                    b.vy = fbrs * Math.sin(dir);
+                } else {
+                    b.vx = fbrs * dx / dr;
+                    b.vy = fbrs * dy / dr;
                 }
-                fbs.length = 0;
-                return true;
+                this.bullets.push(b);
             }
-            return false;
+            fbs.length = 0;
         },
         
         shoot: function(dt) {
@@ -173,6 +161,7 @@ function TestScene6() {
                             .f('white').de(-2*fr+1,-fr+1,4*fr-2,2*fr-2);
                         b.instance.cache(-2*fr-1, -fr-1, 4*fr+2, 2*fr+2);
                         b.instance.rotation = Math.random() * 360;
+                        b.instance.alpha = Math.random() * 0.5 + 0.5;
                             
                         b.on_stage(this.bullet_layer);
                         this.focused_bullets.push(b);
@@ -209,7 +198,7 @@ function TestScene6() {
                             vy: speed * Math.sin(direction),
                             radius: r
                         });
-
+                        
                         b.on_stage(this.bullet_layer);
                         this.bullets.push(b);
 
@@ -325,7 +314,7 @@ function TestScene6() {
         if(!msg.sameUrl) return;
         if(!check_msg_id(msg)) return;
         if(self.send_ping_id) {
-            clearInterval(self.send_ping_id);
+            clearTimeout(self.send_ping_id);
             self.send_ping_id = null;
         }
     };
@@ -375,9 +364,14 @@ function TestScene6() {
         
         function(dt) {
             // Initiate handshake
-            this.send_ping_id = setInterval(function() {
+            var self = this;
+            this.send_ping_interval = 1000;
+            function send_ping() {
                 TogetherJS.send({type:'ping', id:self.player.id});
-            }, 3000);
+                self.send_ping_interval += 1000;
+                self.send_ping_id = setTimeout(send_ping, self.send_ping_interval);
+            }
+            send_ping();
             
             return dt;
         },
@@ -430,7 +424,7 @@ function TestScene6() {
     ]);
 }
 
-Util.extend(TestScene6.prototype, new Interpreter(), {
+Util.extend(Arena.prototype, new Interpreter(), {
     // if the enemy become idle for a while, we can start to recover
     hp_recover_threshold: 3000,
     hp_recover_ratio: 100 / 10000,
@@ -469,18 +463,17 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
     },
 
     check_player_hit: function() {
-        var s = this.player;
+        var player = this.player;
         var minr = this.enemy.bullet_min_radius;
         var bs = this.enemy.bullets;
         var hit = false;
         for(var i = 0, l = bs.length; i < l;) {
             var b = bs[i];
-            var br = b.radius;
-            var r = br + this.player.radius;
-            var dx = s.x - b.x;
-            var dy = s.y - b.y;
+            var r = b.radius + this.player.radius;
+            var dx = player.x - b.x;
+            var dy = player.y - b.y;
             if(dx * dx + dy * dy < r * r) {
-                var damage_root = br / minr;
+                var damage_root = b.radius / minr;
                 this.player.hp -= damage_root * damage_root;
                 b.off_stage();
                 b.recycle();
@@ -512,10 +505,9 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
             this.last_sync_time = Math.max(this.last_sync_time, msg.t);
             
             if(msg.f && !e.focused) {
+                // don't check releasing, due to possible network delays
                 e.focus();
-            }
-            
-            if(!msg.f && e.focused) {
+            } else if (!msg.f && e.focused) {
                 e.release();
             }
         }
@@ -546,16 +538,17 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
             player.y += move_distance;
         }
         
-        if(this.round_started && WLGame.input.is_pressed('action')) {
-            if(player.focus()) {
-                var hit_disc = this.player_hit_disc;
-                hit_disc.visible = true;
-                hit_disc.alpha = 0;
-                createjs.Tween.get(hit_disc, {override: true}).to({alpha:1}, 1000);
-            }
-        }
-        if(this.round_started && WLGame.input.is_released('action')) {
-            if(player.release()) {
+        if(this.round_started) {
+            if(WLGame.input.is_held('action')) {
+                if(!player.focused && !player.releasing) {
+                    player.focus();
+                    var hit_disc = this.player_hit_disc;
+                    hit_disc.visible = true;
+                    hit_disc.alpha = 0;
+                    createjs.Tween.get(hit_disc, {override: true}).to({alpha:1}, 1000);
+                }
+            } else if (player.focused) {
+                player.release();
                 this.player_hit_disc.visible = false;
             }
         }
@@ -573,27 +566,31 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         if(this.round_started) {
             this.player.shoot(dt);
             this.enemy.shoot(dt);
+            
             if(this.check_player_hit()) {
          
             }
-        
+            
             // check recover
             if(this.last_sync_time + this.hp_recover_threshold < Date.now() - this.round_start_time) {
                 this.player.hp = Math.min(100, this.player.hp + this.hp_recover_ratio * dt);
             }
         }
     
+        var bc1 = this.player.bullets.length;
+        var bc2 = this.player.focused_bullets.length;
+        var bc3 = this.enemy.bullets.length;
+        var bc4 = this.enemy.focused_bullets.length;
         WLGame.debug_hud.message = 'FPS: ' + Math.round(createjs.Ticker.getMeasuredFPS())
-            + '\nBubbles: ' + (this.player.bullets.length + this.player.focused_bullets.length + this.enemy.bullets.length + this.enemy.focused_bullets.length)
+            + '\nBubbles: ' + (bc1 + bc2 + bc3 + bc4) + ' (' + bc1 + ' ' + bc2 + ' ' + bc3 + ' ' + bc4 + ')'
             + '\nHP: ' + this.player.hp
             + '\nHP2: ' + this.enemy.hp
-         ;
-    
+        ;
         
         TogetherJS.send({type:'sync', 
                          x:Math.round(this.player.x), 
                          y:Math.round(this.player.y), 
-                         d:this.player.shoot_direction.toFixed(3),
+                         d:Math.round(this.player.shoot_direction * 1000)/1000,
                          hp:Math.round(this.player.hp),
                          id:this.player.id,
                          f:(this.player.focused ? 1 : 0),

@@ -34,7 +34,7 @@ function Input() {
     
     // update and check upon key events
     var self = this;
-    document.getElementById('game-container').addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function(e) {
         var key_state = self.keyboard_mapping[e.keyCode];
         if(key_state) {
             e.preventDefault();
@@ -45,7 +45,7 @@ function Input() {
             }
         }
     });
-    document.getElementById('game-container').addEventListener('keyup', function(e) {
+    document.addEventListener('keyup', function(e) {
         var key_state = self.keyboard_mapping[e.keyCode];
         if(key_state) {
             e.preventDefault();

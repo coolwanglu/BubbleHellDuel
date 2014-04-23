@@ -16,7 +16,7 @@ Game.prototype.run = function() {
     // set up a layer such that debug_hud is always on top of it
     var layer = new createjs.Container();
     stage.addChild(layer);
-    var director = this['director'] = this.director = new Director(new TestScene6(), layer);
+    var director = this['director'] = this.director = new Director(new Arena(), layer);
 
     var debug_hud = this.debug_hud = new DebugHud();
     debug_hud.on_stage(stage);
