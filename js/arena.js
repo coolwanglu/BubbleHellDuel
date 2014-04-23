@@ -8,7 +8,7 @@ function TestScene6() {
     function Player(config) {
         Util.extend(this, config);
         this.bullets = [];
-        this.bullets2 = [];
+        this.focused_bullets = [];
         this.bullet_layer = new createjs.Container();
         this.bullet_pool = new BulletPool();
         this.update_instance();
@@ -29,13 +29,22 @@ function TestScene6() {
         shoot_direction: 0,
         
         move_speed: 0.2,
-        move_speed_focus: 0.1,
+        move_speed_focused: 0.06,
         
         bullet_speed: 0.128,
         bullet_min_radius: 5,
         bullet_max_radius: 20,
         bullet_lightness: 50,
         bullet_alpha:0.9,
+        
+        focused_shoot_interval: 100,
+        focused_bullet_radius: 5,
+        focused_bullet_angular_speed: Math.PI / 1000,
+        focused_bullet_release_speed: 0.2,
+        focused_bullet_count_limit: 30,
+        
+        // this is not the actual pixel, see update_bullets()
+        focused_circle_radius: 10,
         
         radius: 5,
         stage_margin: 100,
@@ -46,74 +55,166 @@ function TestScene6() {
         releasing: false,
           
         update_bullets: function(dt) {
-            var tmp = this.bullets2;
-            tmp.length = 0;
             var m = this.stage_margin;
-            for(var i = 0, l = this.bullets.length; i < l; ++i) {
-                var b = this.bullets[i];
+            var bl = this.bullets;
+            for(var i = 0, l = bl.length; i < l; ) {
+                var b = bl[i];
                 b.update_physics(dt);
                 b.update_graphics();
                 if((b.x < -m) || (b.x > WLGame.stage.canvas.width + m)
                    || (b.y < -m) || (b.y > WLGame.stage.canvas.height + m)) {
                     b.off_stage();
                     b.recycle();
+                    // remove b from bl
+                    bl[i] = bl[l-1];
+                    --bl.length;
+                    --l;
                 } else {
-                    tmp.push(b);
+                    ++i;
                 }
             }
-            this.bullets2 = this.bullets;
-            this.bullets = tmp;
+            
+            // update focused bullets
+            // they don't disappear when off stage
+            var fbl = this.focused_bullets;
+        
+            var fbas = this.focused_bullet_angular_speed;
+            var fcr = this.focused_circle_radius;
+            for(var i = 0, l = fbl.length; i < l; ++i) {
+                var b = fbl[i];
+                b.life_time += dt;
+                b.revolution_angle += fbas * dt;
+                var r = Math.log(1+b.life_time) * fcr;
+
+                b.x = this.x + r * Math.cos(b.revolution_angle);
+                b.y = this.y + r * Math.sin(b.revolution_angle);
+                b.update_graphics();
+            }
         },
         
+        // return if succedeed
         focus: function() {
             if(!this.focused && !this.releasing) {
                 this.focused = true;
                 this.instance.gotoAndPlay('focus');
+                return true;
             }
+            return false;
         },
-         
+    
+        // return if succedeed
         release: function() {
             if(this.focused) {
                 this.focused = false;
                 this.releasing = true;
                 this.instance.gotoAndPlay('release');
+                
+                // release focused bullets: convert them into normal ones
+                var fbs = this.focused_bullets;
+                var fbrs = this.focused_bullet_release_speed * (1+(1+Math.cos(Date.now() % 2000))/2);
+                var ox = this.opponent.x;
+                var oy = this.opponent.y;
+                for(var i = 0, l = fbs.length; i < l; ++i) {
+                    var b = fbs[i];
+                    var dx = ox - b.x;
+                    var dy = oy - b.y;
+                    var dr = Math.sqrt(dx * dx + dy * dy);
+                    if(Math.abs(dr) < Const.EPS) {
+                        var dir = Math.random() * Math.PI * 2;
+                        b.vx = fbrs * Math.cos(dir);
+                        b.vy = fbrs * Math.sin(dir);
+                    } else {
+                        b.vx = fbrs * dx / dr;
+                        b.vy = fbrs * dy / dr;
+                    }
+                    this.bullets.push(b);
+                }
+                fbs.length = 0;
+                return true;
             }
+            return false;
         },
         
         shoot: function(dt) {
             this.shoot_timer += dt;
-            while(this.shoot_timer > this.shoot_interval) {
-                this.shoot_timer -= this.shoot_interval;
-                var direction = this.shoot_direction;
-                var bp = this.bullet_pool;
-                for(var i = 0; i < this.shoot_count; ++i) {
-                    var b = this.bullet_pool.get();
-                    // init new bullet
-
-                    var r = this.bullet_min_radius + Math.random() * (this.bullet_max_radius - this.bullet_min_radius);
-
-                    b.instance.graphics.c()
-                        .ss(2).s('white')
-                        .f(createjs.Graphics.getHSL(Date.now() % 2000 / 2000.0 * 360, 100, this.bullet_lightness))
-                        .dc(0,0,r-1);
-                    b.instance.cache(-r-1, -r-1, 2*r+2, 2*r+2);
+            if(this.focused) {
+                while(this.shoot_timer > this.focused_shoot_interval) {
+          
+                    // we will add this.shoot_count new bullets below
+                    // assuming this.shoot_count is not super large
+                    // this would be fine
+                
+                    if(this.focused_bullets.length >= this.focused_bullet_count_limit) {
+                        this.shoot_timer = 0;
+                        return;
+                    }
                     
-                    b.instance.alpha = this.bullet_alpha;
+                    this.shoot_timer -= this.focused_shoot_interval;
+                    var bp = this.bullet_pool;
+                    var fr = this.focused_bullet_radius;
+                    var t = Date.now();
+                    var direction = this.shoot_direction;
                     
-                    var sqrt2 = Math.sqrt(2.0);
-                    var speed = this.bullet_speed * (1+(1+Math.cos(Date.now() % 2000))/2);
-                    Util.extend(b, {
-                        x: this.x,
-                        y: this.y,
-                        vx: speed * Math.cos(direction),
-                        vy: speed * Math.sin(direction),
-                        radius: r
-                    });
-                    
-                    b.on_stage(this.bullet_layer);
-                    this.bullets.push(b);
+                    for(var i = 0; i < this.shoot_count; ++i) {
+                        var b = this.bullet_pool.get();
+                       
+                        // the position of focused bullets is handled by the shooter
+                        // so vx and vy are not necessary
+                        Util.extend(b, {
+                            x: this.x,
+                            y: this.y,
+                            life_time: 0,
+                            radius: fr,
+                            revolution_angle: direction
+                        });
+                        b.instance.graphics.c()
+                            .f(createjs.Graphics.getRGB(0,255,255,0.2)).de(-2*fr-1,-fr-1,4*fr+2,2*fr+2)
+                            .f('cyan').de(-2*fr,-fr,4*fr,2*fr)
+                            .f('white').de(-2*fr+1,-fr+1,4*fr-2,2*fr-2);
+                        b.instance.cache(-2*fr-1, -fr-1, 4*fr+2, 2*fr+2);
+                        b.instance.rotation = Math.random() * 360;
+                            
+                        b.on_stage(this.bullet_layer);
+                        this.focused_bullets.push(b);
 
-                    direction += Math.PI * 2 / this.shoot_count;
+                        direction += Math.PI * 2 / this.shoot_count;
+                    }
+                }
+            } else {
+                while(this.shoot_timer > this.shoot_interval) {
+                    // normal bullets
+                    this.shoot_timer -= this.shoot_interval;
+                    var direction = this.shoot_direction;
+                    var bp = this.bullet_pool;
+                    for(var i = 0; i < this.shoot_count; ++i) {
+                        var b = this.bullet_pool.get();
+                        // init new bullet
+
+                        var r = this.bullet_min_radius + Math.random() * (this.bullet_max_radius - this.bullet_min_radius);
+
+                        b.instance.graphics.c()
+                            .ss(2).s('white')
+                            .f(createjs.Graphics.getHSL(Date.now() % 2000 / 2000.0 * 360, 100, this.bullet_lightness))
+                            .dc(0,0,r-1);
+                        b.instance.cache(-r-1, -r-1, 2*r+2, 2*r+2);
+
+                        b.instance.alpha = this.bullet_alpha;
+
+                        var sqrt2 = Math.sqrt(2.0);
+                        var speed = this.bullet_speed * (1+(1+Math.cos(Date.now() % 2000))/2);
+                        Util.extend(b, {
+                            x: this.x,
+                            y: this.y,
+                            vx: speed * Math.cos(direction),
+                            vy: speed * Math.sin(direction),
+                            radius: r
+                        });
+
+                        b.on_stage(this.bullet_layer);
+                        this.bullets.push(b);
+
+                        direction += Math.PI * 2 / this.shoot_count;
+                    }
                 }
             }
         },
@@ -168,6 +269,13 @@ function TestScene6() {
         ),
     });
     this.enemy.instance.visible = false;
+    
+    this.player.opponent = this.enemy;
+    this.enemy.opponent = this.player;
+    
+    var hit_disc = this.player_hit_disc = new createjs.Shape();
+    hit_disc.graphics.f('white').dc(0,0,this.player.radius);
+    hit_disc.visible = false;
     
     this.bg_img = new createjs.Bitmap(WLGame.assets.getResult('bg'));
     
@@ -332,6 +440,7 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         stage.addChild(this.bg_img);
         stage.addChild(this.player.bullet_layer);
         stage.addChild(this.player.instance);
+        stage.addChild(this.player_hit_disc);
         stage.addChild(this.enemy.bullet_layer);
         stage.addChild(this.enemy.instance);
         stage.addChild(this.message_board);
@@ -341,6 +450,7 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         stage.removeChild(this.bg_img);
         stage.removeChild(this.player.bullet_layer);
         stage.removeChild(this.player.instance);
+        stage.removeChild(this.player_hit_disc);
         stage.removeChild(this.enemy.bullet_layer);
         stage.removeChild(this.enemy.instance);
         stage.removeChild(this.message_board);
@@ -362,10 +472,8 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         var s = this.player;
         var minr = this.enemy.bullet_min_radius;
         var bs = this.enemy.bullets;
-        var tmp = this.enemy.bullets2;
-        tmp.length = 0;
         var hit = false;
-        for(var i = 0, l = bs.length; i < l; ++i) {
+        for(var i = 0, l = bs.length; i < l;) {
             var b = bs[i];
             var br = b.radius;
             var r = br + this.player.radius;
@@ -377,12 +485,14 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
                 b.off_stage();
                 b.recycle();
                 hit = true;
+                
+                bs[i] = bs[l-1];
+                --bs.length;
+                --l;
             } else {
-                tmp.push(b);
+                ++i;
             }
         }
-        this.enemy.bullets = tmp;
-        this.enemy.bullets2 = bs;
         return hit;
     },
     process_sync_events: function(dt) {
@@ -402,13 +512,11 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
             this.last_sync_time = Math.max(this.last_sync_time, msg.t);
             
             if(msg.f && !e.focused) {
-                e.focused = true;
-                e.instance.gotoAndPlay('focus');
+                e.focus();
             }
             
             if(!msg.f && e.focused) {
-                e.focused = false;
-                e.instance.gotoAndPlay('release');
+                e.release();
             }
         }
         
@@ -421,7 +529,7 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         while(player.shoot_direction > Math.PI * 2)
             player.shoot_direction -= Math.PI * 2;
       
-        var move_distance = (player.focused ? player.move_speed_focus : player.move_speed) * dt;
+        var move_distance = (player.focused ? player.move_speed_focused : player.move_speed) * dt;
         if(player.x > move_distance 
             && WLGame.input.is_held('move_left')) {
             player.x -= move_distance;
@@ -439,10 +547,17 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         }
         
         if(this.round_started && WLGame.input.is_pressed('action')) {
-            player.focus();
+            if(player.focus()) {
+                var hit_disc = this.player_hit_disc;
+                hit_disc.visible = true;
+                hit_disc.alpha = 0;
+                createjs.Tween.get(hit_disc, {override: true}).to({alpha:1}, 1000);
+            }
         }
         if(this.round_started && WLGame.input.is_released('action')) {
-            player.release();
+            if(player.release()) {
+                this.player_hit_disc.visible = false;
+            }
         }
     },
     battle_mainloop: function(dt) {
@@ -451,6 +566,9 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         
         this.player.update(dt);
         this.enemy.update(dt);
+        
+        this.player_hit_disc.x = Math.round(this.player.x);
+        this.player_hit_disc.y = Math.round(this.player.y);
         
         if(this.round_started) {
             this.player.shoot(dt);
@@ -466,7 +584,7 @@ Util.extend(TestScene6.prototype, new Interpreter(), {
         }
     
         WLGame.debug_hud.message = 'FPS: ' + Math.round(createjs.Ticker.getMeasuredFPS())
-            + '\nBubbles: ' + (this.player.bullets.length + this.enemy.bullets.length)
+            + '\nBubbles: ' + (this.player.bullets.length + this.player.focused_bullets.length + this.enemy.bullets.length + this.enemy.focused_bullets.length)
             + '\nHP: ' + this.player.hp
             + '\nHP2: ' + this.enemy.hp
          ;

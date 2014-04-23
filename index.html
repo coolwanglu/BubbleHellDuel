@@ -25,7 +25,7 @@
         <h2>Bubble Hell Duel</h2>
       </div>
       <a id="link-matching" class="btn" href="#random_matching" target="_blank">Random matching</a>
-      <a id="link-friend" class="btn" href="#" target="_blank">Play with your friend</a>
+      <a id="link-friend" class="btn" href="#" target="_blank">Challenge your friend</a>
       <div id="game-container" class="container">
         <canvas id="game-canvas1" class="game-canvas" width="800" height="600"></canvas>
         <div id="game-dialog-frame"></div>
@@ -56,7 +56,7 @@
             var e1 = document.getElementById('link-friend');
             var e2 = document.getElementById('link-matching');
             if(!is_random_matching) {
-                e1.innerHTML = 'Play with another friend';
+                e1.innerHTML = 'Challenge another friend';
                 e1.classList.add('btn-success');
             } else {
                 e2.innerHTML = 'Find another match';
@@ -129,7 +129,7 @@
             
             var queue = new createjs.LoadQueue(true);
             queue.on('progress', function(e) {
-                var text = '...';
+                var text = 'Loading...';
                 if(e.loaded > 0)
                     text += (e.loaded * 100).toFixed(1) + '%';
                 document.getElementById('game-loading-text').innerHTML = text;
