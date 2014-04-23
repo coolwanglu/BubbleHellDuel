@@ -88,6 +88,8 @@ Util.extend(Interpreter.prototype, new BaseOP(), {
                     break;
                 case OP.call_op:
                     return new op[1];
+                case OP.sleep:
+                    return new SleepOP(op[1]);
                 default:
                     Util.error('Unknown op: ' + op);
                     break;

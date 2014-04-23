@@ -14,12 +14,13 @@ js_list = [
 	'js/director.js',
 	'js/debug_hud.js',
     'js/player.js',
+    'js/hp_bar.js',
 	'js/arena.js',
 	'js/game.js'
 ]
 
 with open('wlgame.js','w') as outf:
-    outf.write('(function(){')
+    outf.write('(function(){"use strict";')
     
     for fn in js_list:
         outf.write(open(prefix + fn).read())

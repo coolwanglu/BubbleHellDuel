@@ -21,6 +21,7 @@ var OP = {
     function:16,
     set_fps:17,
     call_op:18,
+    sleep:19,
     
     invalid:0
 };

@@ -36,10 +36,6 @@ Util.extend(Bullet.prototype, {
     update_physics: function(dt) {
         this.x += this.vx * dt;
         this.y += this.vy * dt;
-        if(isNaN(this.x) || isNaN(this.y)){
-            console.log(this, dt);
-            Util.error('here');
-        }
     },
 
     update_graphics: function() {

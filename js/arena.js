@@ -1,5 +1,5 @@
 /*
- * Arena.js
+ * arena.js
  * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
  */
 function Arena() {
@@ -22,7 +22,8 @@ function Arena() {
             }), 'idle'
         ),
         bullet_lightness: 25,
-        bullet_alpha: 0.45
+        bullet_alpha: 0.45,
+        hp:0
     });
     
     this.enemy = new Player({
@@ -42,11 +43,34 @@ function Arena() {
                 }   
             }), 'idle'
         ),
+        hp:0
     });
     this.enemy.instance.visible = false;
     
     this.player.opponent = this.enemy;
     this.enemy.opponent = this.player;
+    
+    this.player_hp_bar = new HPBar({
+        player: this.player,
+        x: 0,
+        y: WLGame.stage_height,
+        width: WLGame.stage_width,
+        height: this.hp_bar_height,
+        color: 'red',
+        flipped: false
+    });
+    this.player_hp_bar.instance.visible = false;
+    
+    this.enemy_hp_bar = new HPBar({
+        player: this.enemy,
+        x: WLGame.stage_width,
+        y: 0,
+        width: WLGame.stage_width,
+        height: this.hp_bar_height,
+        color: 'yellow',
+        flipped: true
+    });
+    this.enemy_hp_bar.instance.visible = false;
     
     var hit_disc = this.player_hit_disc = new createjs.Shape();
     hit_disc.graphics.f('white').dc(0,0,this.player.radius);
@@ -65,12 +89,7 @@ function Arena() {
     this.message_board.visible = false;
     this.message_board.color = 'white';
     
-    var L = {
-        new_record: -1,
-        normal_end: -2,
-        start: -3,
-    };
-    
+ 
     // protocol
     // the protocol is naive, assuming two parties trusting each other
     
@@ -89,60 +108,55 @@ function Arena() {
             return true;
         }
     }
-    this.handle_ping = function (msg) {
+  
+    TogetherJS.hub.on('ping', function (msg) {
         // always answer to ping
         if(!msg.sameUrl) return;
         if(!check_msg_id(msg)) return;
         TogetherJS.send({type:'pong', id:self.player.id}); 
-    };
-
-    this.handle_pong = function (msg) {
+    });
+    TogetherJS.hub.on('pong', function (msg) {
         if(!msg.sameUrl) return;
         if(!check_msg_id(msg)) return;
         if(self.send_ping_id) {
             clearTimeout(self.send_ping_id);
             self.send_ping_id = null;
         }
-    };
+    });
     this.handle_ready = function(msg, loopback) {
         if(!loopback && !msg.sameUrl) return;
         
-        // it's possible that this is the first message we received
-        // also works as pong
         if(!loopback && !check_msg_id(msg)) return;
+        
+        console.log('got ready', msg.count);
         
         if(self.round_started)
             return;
+        
+        // although there are many ready message
+        // it's fine since only the first call will initiate the animation
+        self.reset_hp();
+        
         if(msg.count == -1) {
-            self.start_fight();
+            self.start_round();
         } else {
-            var rt = self.message_board;
-            rt.text = (msg.count == 0) ? 'Fight!' : msg.count;
-            rt.alpha = 1;
-            rt.visible = true;
-            var b = rt.getBounds();
-            rt.x = WLGame.stage_width / 2 - b.width / 2;
-            rt.y = WLGame.stage_height / 2 - b.height / 2;
-
-            createjs.Tween.get(rt, {override: true}).to({alpha:0, visible:false}, 500);
+            self.show_message(((msg.count == 0) ? 'Fight!' : msg.count), 0, 500);
         }
-    };
-    
-    this.handle_sync = function(msg) {
+    }
+    TogetherJS.hub.on('ready', this.handle_ready);
+    TogetherJS.hub.on('sync', function(msg) {
         if(!msg.sameUrl) return;
         if(!check_msg_id(msg)) return;
         if(msg.id != self.player.id)
             self.sync_event_buffer.push(msg); 
-    };
-    
-    TogetherJS.hub.on('ping', this.handle_ping);
-    TogetherJS.hub.on('pong', this.handle_pong);
-    TogetherJS.hub.on('ready', this.handle_ready);
-    TogetherJS.hub.on('sync', this.handle_sync);
+    });
     
     // timeline
+    var L = {
+        get_ready: -1,
+    };
+    
     Interpreter.call(this, [
-        L.start,
         function(dt) {
             // wait for togetherjs
             return window.TJS.ready ? dt : 0;
@@ -163,27 +177,32 @@ function Arena() {
         },
     
         function(dt) {
-            // wait for enmey
+            // wait for enemy
             if(this.enemy_found) {
                 console.log('paired with', this.enemy.id);
                 
+                function reveal(obj) {
+                    obj.alpha = 0;
+                    obj.visible = true;
+                    createjs.Tween.get(obj).to({alpha:1}, 1000);
+                
+                }
+                
                 // show enemy
-                var ei = this.enemy.instance;
-                ei.alpha = 0;
-                ei.visible = true;
-                createjs.Tween.get(ei).to({alpha:1}, 1000);
-            
+                reveal(this.enemy.instance);
+                
                 return dt;
             }
             return 0;
         },
-        
+        L.get_ready,
         function(dt) {
             //Initiate the game
             if(this.player.id > this.enemy.id) {
                 var count = 3;
                 var self = this;
                 function sendReady() {
+                    console.log('send ready',count);
                     var msg = {type:'ready',count:count,id:self.player.id};
                     TogetherJS.send(msg);
                     // sometimes we cannot hear the echo
@@ -200,10 +219,36 @@ function Arena() {
         this.battle_mainloop,
         
         function(dt) {
-            //TODO: clear up, check flag or something
-            //TogetherJS.hub.off('sync', this.handle_sync);
+            // round finshed
+            
+            console.log('Round ended.');
+            
+            this.show_message(this.round_won ? 'You win!' : 'You lose!', 2000, 1000);
+            this.round_started = false;
+            
+            if(this.player.focused) {
+                this.player.release();
+                this.player_hit_disc.visible = false;
+            }
+            
+            if(this.enemy.focused)
+                this.enemy.release();
+            
+            // mark all bullets harmless
+            for(var i = 0, l = this.player.bullets.length; i < l; ++i)
+                this.player.bullets[i].damage = 0;
+            
+            for(var i = 0, l = this.enemy.bullets.length; i < l; ++i)
+                this.enemy.bullets[i].damage = 0;
+            
+            // TODO: set up protocol for rematching
+            
+            return dt;
         },
         
+        [OP.sleep, 1500],
+        
+        [OP.goto, L.get_ready],
         
         OP.halt,
     
@@ -211,10 +256,9 @@ function Arena() {
 }
 
 Util.extend(Arena.prototype, new Interpreter(), {
-    // if the enemy become idle for a while, we can start to recover
-    hp_recover_threshold: 3000,
-    hp_recover_ratio: 100 / 10000,
-     
+    // actually only half of the height will be visible
+    hp_bar_height: 4,
+        
     on_stage: function(stage) {
         this.stage = stage;
         stage.addChild(this.bg_img);
@@ -223,6 +267,8 @@ Util.extend(Arena.prototype, new Interpreter(), {
         stage.addChild(this.player_hit_disc);
         stage.addChild(this.enemy.bullet_layer);
         stage.addChild(this.enemy.instance);
+        stage.addChild(this.player_hp_bar.instance);
+        stage.addChild(this.enemy_hp_bar.instance);
         stage.addChild(this.message_board);
     },
     
@@ -233,11 +279,13 @@ Util.extend(Arena.prototype, new Interpreter(), {
         stage.removeChild(this.player_hit_disc);
         stage.removeChild(this.enemy.bullet_layer);
         stage.removeChild(this.enemy.instance);
+        stage.removeChild(this.player_hp_bar.instance);
+        stage.removeChild(this.enemy_hp_bar.instance);
         stage.removeChild(this.message_board);
     },
         
-    start_fight: function() {
-        console.log('Fight started.');
+    start_round: function() {
+        console.log('Round started.');
         this.round_started = true;
         this.round_start_time = Date.now();
         // last (round) time when we have received a sync message
@@ -255,12 +303,13 @@ Util.extend(Arena.prototype, new Interpreter(), {
         var hit = false;
         for(var i = 0, l = bs.length; i < l;) {
             var b = bs[i];
+            if(b.damage == 0) continue;
+    
             var r = b.radius + this.player.radius;
             var dx = player.x - b.x;
             var dy = player.y - b.y;
             if(dx * dx + dy * dy < r * r) {
-                var damage_root = b.radius / minr;
-                this.player.hp -= damage_root * damage_root;
+                this.player.hp -= b.damage;
                 b.off_stage();
                 b.recycle();
                 hit = true;
@@ -339,7 +388,36 @@ Util.extend(Arena.prototype, new Interpreter(), {
             }
         }
     },
+        
+    show_message: function(msg, duration, fade_time) {
+        var rt = this.message_board;
+        rt.text = msg;
+        rt.alpha = 1;
+        rt.visible = true;
+        var b = rt.getBounds();
+        rt.x = WLGame.stage_width / 2 - b.width / 2;
+        rt.y = WLGame.stage_height / 2 - b.height / 2;
+
+        createjs.Tween.get(rt, {override: true})
+            .wait(duration)
+            .to({alpha:0, visible:false}, fade_time);
+    },
+
+    reset_hp: function() {
+        this.player.dead = false;
+        this.player.hp = this.player.max_hp;
+        this.enemy.dead = false;
+        this.enemy.hp = this.enemy.max_hp;
+
+        this.player_hp_bar.instance.visible = true;
+        this.player_hp_bar.update();
+        this.enemy_hp_bar.instance.visible = true;
+        this.enemy_hp_bar.update();
+    },
+
     battle_mainloop: function(dt) {
+        var round_time = 0;
+        
         this.process_sync_events(dt);
         this.check_local_input(dt);
         
@@ -350,27 +428,25 @@ Util.extend(Arena.prototype, new Interpreter(), {
         this.player_hit_disc.y = Math.round(this.player.y);
         
         if(this.round_started) {
+            round_time = Date.now() - this.round_start_time;
+        
             this.player.shoot(dt);
             this.enemy.shoot(dt);
             
-            if(this.check_player_hit()) {
-         
-            }
+            this.check_player_hit();
             
-            // check recover
-            if(this.last_sync_time + this.hp_recover_threshold < Date.now() - this.round_start_time) {
-                this.player.hp = Math.min(100, this.player.hp + this.hp_recover_ratio * dt);
-            }
+            this.player_hp_bar.update(dt);
+            this.enemy_hp_bar.update(dt);
         }
-    
+        
         var bc1 = this.player.bullets.length;
         var bc2 = this.player.focused_bullets.length;
         var bc3 = this.enemy.bullets.length;
         var bc4 = this.enemy.focused_bullets.length;
         WLGame.debug_hud.message = 'FPS: ' + Math.round(createjs.Ticker.getMeasuredFPS())
             + '\nBubbles: ' + (bc1 + bc2 + bc3 + bc4) + ' (' + bc1 + ' ' + bc2 + ' ' + bc3 + ' ' + bc4 + ')'
-            + '\nHP: ' + this.player.hp
-            + '\nHP2: ' + this.enemy.hp
+            + '\nHP: ' + this.player.hp.toFixed(2)
+            + '\nHP2: ' + this.enemy.hp.toFixed(2)
         ;
         
         TogetherJS.send({type:'sync', 
@@ -380,9 +456,35 @@ Util.extend(Arena.prototype, new Interpreter(), {
                          hp:Math.round(this.player.hp),
                          id:this.player.id,
                          f:(this.player.focused ? 1 : 0),
-                         t:Date.now()-this.round_start_time
+                         t:round_time
                         });
         
+        
+        if(this.round_started) {
+            // check death after sync
+            if(this.player.hp <= 0 && !this.player.dead) {
+                this.player.dead = true;
+                this.player.dead_time = round_time;
+            }
+            if(this.enemy.hp <= 0 && !this.enemy.dead) {
+                this.enemy.dead = true;
+                this.enemy.dead_time = this.last_sync_time;
+            }
+
+            if(this.enemy.dead 
+               && ((!this.player.dead && round_time > this.enemy.dead_time)
+                   || (this.player.dead && this.player.dead_time <= this.enemy.dead_time))) {
+                this.round_won = true;
+                return dt;
+            } 
+            if(this.player.dead 
+               && ((!this.enemy.dead && this.last_sync_time > this.player.dead_time)
+                   || (this.enemy.dead && this.enemy.dead_time <= this.player.dead_time))) {
+                this.round_won = false;
+                return dt;
+            } 
+        }
+    
         return 0;
     }, 
     
