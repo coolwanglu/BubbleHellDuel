@@ -1,19 +1,20 @@
 珠璣鬥 BulletHellDuel
 Copyright (c) 2014 Lu Wang <coolwanglu@gmail.com>
 
-BulletHellDuel is licensed under GNU AGPL v3
+The source code of BulletHellDuel is licensed under GNU AGPL v3
 Read `agpl-3.0.txt` for detail.
 
+Some materials used may have relaxed or restricted licenses.    
 
 #############
-images/desert_dawn.jpg
+data/images/desert_dawn.jpg
 
 Copyright (c) 2014 Lu Wang <coolwanglu@gmail.com>
 
 
-images/sprites.fla
-images/marisa.*
-images/reimu.*
+data/images/sprites.fla
+data/images/marisa.*
+data/images/reimu.*
 
 Originally From Touhou Hisouten ~ Scarlet Weather Rhapsody
 By Tasogare Frontier, Team Shanghai Alice
@@ -24,4 +25,5 @@ Modified by Lu Wang
 closure-compiler/compiler.jar
 
 Copyright 2009 The Closure Compiler Authors.
+Apache License 2.0
 See `closure-compiler/COPYING`.

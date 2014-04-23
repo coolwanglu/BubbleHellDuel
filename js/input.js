@@ -1,3 +1,9 @@
+/*
+ * input.js
+ * detect keboard and gamepad inputs
+ *
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
+ */
 function Input() {    
     // init input
     // accumulated state

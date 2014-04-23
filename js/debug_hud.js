@@ -1,3 +1,7 @@
+/*
+ * debug_hud.js
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
+ */
 function DebugHud () {
     var message_area = this.message_area = new createjs.Text("FPS: 0");
     message_area.x = 50;

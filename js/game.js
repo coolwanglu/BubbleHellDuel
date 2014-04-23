@@ -1,3 +1,9 @@
+/*
+ * game.js
+ * entry point
+ *
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
+ */
 function Game(queue) { 
     this.assets = queue;
 }

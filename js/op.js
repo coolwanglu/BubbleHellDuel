@@ -1,3 +1,10 @@
+/*
+ * op.js
+ * operation codes used in Interpreter
+ *
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
+ */
+
 /**
  * @enum {number}
  */

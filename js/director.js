@@ -1,3 +1,9 @@
+/*
+ * director.js
+ * manage call stacks
+ *
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
+ */
 function Director(InitialOP, stage) {
     this.cur_entry = {
         op: InitialOP

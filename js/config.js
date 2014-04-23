@@ -1,3 +1,7 @@
+/*
+ * config.js
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
+ */
 var Config = {
     key_mapping: {
         keyboard: {

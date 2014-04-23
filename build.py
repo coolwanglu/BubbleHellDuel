@@ -13,6 +13,7 @@ js_list = [
 	'js/interpreter.js',
 	'js/director.js',
 	'js/debug_hud.js',
+    'js/player.js',
 	'js/arena.js',
 	'js/game.js'
 ]

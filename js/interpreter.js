@@ -1,15 +1,9 @@
 /*
-Description of the scripting engine
-
-the input is a series of OP's
-
-the runtime consists of pointers to the current OP and  the current scene
-
-current scene is the common context for a group of OP, 
-it can be replace with new scene, or save/restore via push/pop
-
+ * interpreter.js
+ * a simple scripting language
+ *
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
  */
-
 function Interpreter (script) {
     this.script = script ? script.slice(0) : [];
     this.script.push(OP.halt);

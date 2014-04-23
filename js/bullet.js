@@ -1,9 +1,12 @@
 /*
- * Constantly moving object
+ * bullet.js
+ * Constantly moving
  * Ignoring gravity
  * No Acceleration
+ * Pooling
+ *
+ * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
  */
-
 function Bullet(config) {
     this.instance = new createjs.Shape();
 }
@@ -14,10 +17,6 @@ Util.extend(Bullet.prototype, {
     y: 0,
     vx: 0,
     vy: 0,
-    hb_hw: 0, // half width of hitbox
-    hb_hh: 0, // half height of hitbox
-    colliding_mask: 0,
-    colliding_group: 0,
     
     on_stage: function(stage) {
         stage.addChild(this.instance);
@@ -32,15 +31,6 @@ Util.extend(Bullet.prototype, {
     
     recycle: function() {
         this.pool.put(this);
-    },
-    
-    get_hitbox: function() {
-        return {
-            x: this.x,
-            y: this.y,
-            hw: this.hb_hw,
-            hh: this.hb_hh
-        };
     },
     
     update_physics: function(dt) {
