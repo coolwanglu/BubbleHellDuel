@@ -10,6 +10,8 @@ var Config = {
             move_up: [KeyEvent.DOM_VK_UP],
             move_down: [KeyEvent.DOM_VK_DOWN],
             action: [KeyEvent.DOM_VK_SHIFT],
+            // Why F3? Ask Notch!
+            debug_hud: [KeyEvent.DOM_VK_F3]
         },
         /* array for axes, number for buttons */
         gamepad: {

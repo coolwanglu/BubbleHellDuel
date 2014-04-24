@@ -36,6 +36,9 @@ Game.prototype.run = function() {
         
         input.update(dt);
         director.update(dt);
+        
+        if(input.is_pressed('debug_hud'))
+            debug_hud.toggle();
         debug_hud.update(dt);
         
         // need to pass the event in order to make SpriteSheet.framerate work

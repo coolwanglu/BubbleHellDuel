@@ -489,6 +489,7 @@ Util.extend(Arena.prototype, new Interpreter(), {
         var bc2 = this.player.focused_bullets.length;
         var bc3 = this.enemy.bullets.length;
         var bc4 = this.enemy.focused_bullets.length;
+
         WLGame.debug_hud.message = 'FPS: ' + Math.round(createjs.Ticker.getMeasuredFPS())
             + '\nBubbles: ' + (bc1 + bc2 + bc3 + bc4) + ' (' + bc1 + ' ' + bc2 + ' ' + bc3 + ' ' + bc4 + ')'
             + '\nHP: ' + this.player.hp.toFixed(2)

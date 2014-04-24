@@ -8,6 +8,7 @@ function DebugHud () {
     message_area.y = 50;
     message_area.color = 'yellow';
     message_area.font = '13px Georgia';
+    message_area.visible = false;
     this.message = '';
 }
 
@@ -18,6 +19,10 @@ Util.extend(DebugHud.prototype, {
     
     update: function(dt) {
          this.message_area.text = this.message;
-    }
+    },
+    
+    toggle: function() {
+        this.message_area.visible = !this.message_area.visible; 
+    },
 });
 
