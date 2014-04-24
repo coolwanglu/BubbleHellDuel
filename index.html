@@ -5,8 +5,8 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>珠璣訣 - Bubble Hell Duel | By Lu Wang</title>
-    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
     <link rel="stylesheet" href="style.css">
     <script>
       (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
@@ -29,8 +29,24 @@
         <h1>珠璣訣</h1>
         <h2>Bubble Hell Duel</h2>
       </div>
-      <a id="link-matching" class="btn" href="#random_matching" target="_blank">Random matching</a>
-      <a id="link-friend" class="btn" href="#" target="_blank">Challenge your friend</a>
+      <div class="container" style="width:800px">
+        <a id="link-matching" class="btn" style="padding:0" href="#random_matching" target="_blank" title="随机配对 | Random Match">
+          <img src="data/icons/appbar.people.multiple.magnify.svg" style="width:48px;height:48px;" >
+        </a>
+        <a id="link-friend" class="btn" style="padding:0" href="#" target="_blank" title="邀请好友 | Invite a Friend">
+          <img src="data/icons/appbar.user.add.svg" style="width:48px;height:48px;" >
+        </a>
+        <div class="pull-right">
+          <kbd>&#x2190;</kbd>
+          <kbd>&#x2191;</kbd>
+          <kbd>&#x2193;</kbd>
+          <kbd>&#x2192;</kbd>
+          <kbd>&#x21e7; Shift</kbd> 
+          &nbsp;&nbsp;&nbsp;
+          <b>/</b>
+          <img src="data/icons/appbar.controller.xbox.svg" style="width:48px;height:48px;" >
+        </div>
+      </div>
       <div id="game-container" class="container">
         <canvas id="game-canvas1" class="game-canvas" width="800" height="600"></canvas>
         <div id="game-dialog-frame"></div>
@@ -40,8 +56,6 @@
             <div id="game-loading-text">Loading...</div>
           </div>
         </div>
-          
-        <div id="game-title-menu" class="game-title-menu"></div>
       </div>
       <br>
       <br>
@@ -61,10 +75,10 @@
             var e1 = document.getElementById('link-friend');
             var e2 = document.getElementById('link-matching');
             if(!is_random_matching) {
-                e1.innerHTML = 'Challenge another friend';
+                //e1.innerHTML = 'Challenge another friend';
                 e1.classList.add('btn-success');
             } else {
-                e2.innerHTML = 'Find another match';
+                //e2.innerHTML = 'Find another match';
                 e2.classList.add('btn-success');
             }
             e1.addEventListener('click', function() {

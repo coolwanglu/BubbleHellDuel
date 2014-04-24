@@ -22,6 +22,15 @@ http://www.spriters-resource.com
 Modified by Lu Wang
 
 
+data/icons/*
+
+From the Modern UI Icons http://modernuiicons.com/
+By Austin Andrews and Contributors
+
+No Attribution and No Derived Works
+http://creativecommons.org/licenses/by-nd/3.0/ *
+
+
 closure-compiler/compiler.jar
 
 Copyright 2009 The Closure Compiler Authors.
