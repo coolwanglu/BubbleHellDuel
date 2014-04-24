@@ -7,6 +7,7 @@ function Player(config) {
     Util.extend(this, config);
     this.bullets = [];
     this.focused_bullets = [];
+    this.released_bullets = [];
     this.bullet_layer = new createjs.Container();
     this.bullet_pool = new BulletPool();
     this.update_instance();
@@ -38,11 +39,15 @@ Player.prototype = {
     focused_shoot_interval: 100,
     focused_bullet_radius: 5,
     focused_bullet_angular_speed: Math.PI / 1000,
-    // don't make it too fast, or it could pass the opponent without hitting it.    
-    focused_bullet_release_speed: 0.5,
     focused_bullet_count_limit: 30,
     focused_bullet_damage: 5,
-
+    
+    release_interval: 100,
+    release_timer: 0,
+    // don't make it too fast, or it could pass the opponent without hitting it.    
+    released_bullet_speed: 0.5,
+  
+    
     // this is not the actual pixel, see update_bullets()
     focused_circle_radius: 7,
 
@@ -57,13 +62,22 @@ Player.prototype = {
     releasing: false,
     dead: false,
 
+    disable_all_bullets: function() {
+        // marks all bullets harmless
+        for(var i = 0, l = this.bullets.length; i < l; ++i)
+            this.bullets[i].damage = 0;
+     
+        for(var i = 0, l = this.released_bullets.length; i < l; ++i)
+            this.released_bullets[i].damage = 0;
+    },
+    
     update_bullets: function(dt) {
         var m = this.stage_margin;
         var sw = WLGame.stage_width;
         var sh = WLGame.stage_height;
-        var bl = this.bullets;
-        for(var i = 0, l = bl.length; i < l; ) {
-            var b = bl[i];
+        var bs = this.bullets;
+        for(var i = 0, l = bs.length; i < l; ) {
+            var b = bs[i];
             b.update_physics(dt);
             b.update_graphics();
             if((b.x < -m) || (b.x > sw + m)
@@ -71,8 +85,8 @@ Player.prototype = {
                 b.off_stage();
                 b.recycle();
                 // remove b from bl
-                bl[i] = bl[l-1];
-                --bl.length;
+                bs[i] = bs[l-1];
+                --bs.length;
                 --l;
             } else {
                 ++i;
@@ -81,12 +95,12 @@ Player.prototype = {
 
         // update focused bullets
         // they don't disappear when off stage
-        var fbl = this.focused_bullets;
+        var fbs = this.focused_bullets;
 
         var fbas = this.focused_bullet_angular_speed;
         var fcr = this.focused_circle_radius;
-        for(var i = 0, l = fbl.length; i < l; ++i) {
-            var b = fbl[i];
+        for(var i = 0, l = fbs.length; i < l; ++i) {
+            var b = fbs[i];
             b.life_time += dt;
             // focused bullets are rotating in the opposite direction
             b.revolution_angle -= fbas * dt;
@@ -95,6 +109,44 @@ Player.prototype = {
             b.x = this.x + r * Math.cos(b.revolution_angle);
             b.y = this.y + r * Math.sin(b.revolution_angle);
             b.update_graphics();
+        }
+        
+        // update released bullets
+        // convert them into normal ones
+        this.release_timer += dt;
+        var rbs = this.released_bullets;
+        while(this.release_timer > this.release_interval) {
+            if(rbs.length == 0) {
+                this.release_timer = 0;
+                break;
+            }
+            this.release_timer -= this.release_interval;
+            
+            var ox = this.opponent.x;
+            var oy = this.opponent.y;
+            for(var i = 0; i < this.shoot_count; ++i) {
+                if(rbs.length == 0)
+                    break;
+                
+                var j = Math.floor(Math.random() * rbs.length);
+                var b = rbs[j];
+                var dx = ox - b.x;
+                var dy = oy - b.y;
+                var dr = Math.sqrt(dx * dx + dy * dy);
+                var speed = this.released_bullet_speed * (1+Math.random());
+                if(Math.abs(dr) < Const.EPS) {
+                    var dir = Math.random() * Math.PI * 2;
+                    b.vx = speed * Math.cos(dir);
+                    b.vy = speed * Math.sin(dir);
+                } else {
+                    b.vx = speed * dx / dr;
+                    b.vy = speed * dy / dr;
+                }
+                this.bullets.push(b);
+                
+                rbs[j] = rbs[rbs.length-1];
+                --rbs.length;
+            }
         }
     },
 
@@ -107,28 +159,9 @@ Player.prototype = {
         this.focused = false;
         this.releasing = true;
         this.instance.gotoAndPlay('release');
-
-        // release focused bullets: convert them into normal ones
-        var fbs = this.focused_bullets;
-        var ox = this.opponent.x;
-        var oy = this.opponent.y;
-        for(var i = 0, l = fbs.length; i < l; ++i) {
-            var b = fbs[i];
-            var dx = ox - b.x;
-            var dy = oy - b.y;
-            var dr = Math.sqrt(dx * dx + dy * dy);
-            var fbrs = this.focused_bullet_release_speed * (1+Math.random());
-            if(Math.abs(dr) < Const.EPS) {
-                var dir = Math.random() * Math.PI * 2;
-                b.vx = fbrs * Math.cos(dir);
-                b.vy = fbrs * Math.sin(dir);
-            } else {
-                b.vx = fbrs * dx / dr;
-                b.vy = fbrs * dy / dr;
-            }
-            this.bullets.push(b);
-        }
-        fbs.length = 0;
+        
+        this.released_bullets = this.released_bullets.concat(this.focused_bullets);
+        this.focused_bullets.length = 0;
     },
 
     shoot: function(dt) {

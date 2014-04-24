@@ -238,12 +238,8 @@ function Arena() {
                 this.enemy.release();
             
             // mark all bullets harmless
-            for(var i = 0, l = this.player.bullets.length; i < l; ++i)
-                this.player.bullets[i].damage = 0;
-            
-            for(var i = 0, l = this.enemy.bullets.length; i < l; ++i)
-                this.enemy.bullets[i].damage = 0;
-            
+            this.player.disable_all_bullets();
+            this.enemy.disable_all_bullets();
             return dt;
         },
         
