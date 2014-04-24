@@ -152,15 +152,6 @@ function Arena() {
             self.sync_event_buffer.push(msg); 
     });
     
-    TogetherJS.hub.on('die', function(msg) {
-        if(!msg.sameUrl) return;
-        if(!check_msg_id(msg)) return;
-        if(msg.id == self.enemy.id) {
-            self.enemy.dead = true;
-            self.enemy.dead_time = msg.t;
-        }
-    });
-    
     // timeline
     var L = {
         get_ready: -1,
@@ -359,6 +350,11 @@ Util.extend(Arena.prototype, new Interpreter(), {
             } else if (!msg.f && e.focused) {
                 e.release();
             }
+
+            if(msg.dt) {
+                this.enemy.dead = true;
+                this.enemy.dead_time = msg.dt;
+            }
         }
            
         // clear buffer
@@ -456,7 +452,6 @@ Util.extend(Arena.prototype, new Interpreter(), {
             if(this.player.hp <= 0 && !this.player.dead) {
                 this.player.dead = true;
                 this.player.dead_time = round_time;
-                TogetherJS.send({type:'die', id:this.player.id, n:this.round_number, t:round_time});
             }
             
             if(this.enemy.dead) {
@@ -496,16 +491,20 @@ Util.extend(Arena.prototype, new Interpreter(), {
             + '\nHP2: ' + this.enemy.hp.toFixed(2)
         ;
         
-        TogetherJS.send({type:'sync', 
-                         x:Math.round(this.player.x), 
-                         y:Math.round(this.player.y), 
-                         d:Math.round(this.player.shoot_direction * 1000)/1000,
-                         hp:Math.round(this.player.hp),
-                         id:this.player.id,
-                         f:(this.player.focused ? 1 : 0),
-                         n:this.round_number,
-                         t:round_time
-                        });
+        var msg = {
+            type:'sync', 
+            x:Math.round(this.player.x), 
+            y:Math.round(this.player.y), 
+            d:Math.round(this.player.shoot_direction * 1000)/1000,
+            hp:Math.round(this.player.hp),
+            id:this.player.id,
+            f:(this.player.focused ? 1 : 0),
+            n:this.round_number,
+            t:round_time
+        };
+        if(this.player.dead)
+            msg.dt = this.player.dead_time;
+        TogetherJS.send(msg);
         
         return (round_done ? dt : 0);
     }, 
