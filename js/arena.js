@@ -95,6 +95,7 @@ function Arena() {
     
     this.enemy_found = false;
     this.round_started = false;
+    this.round_number = 0;
             
     var self = this;
     function check_msg_id(msg) {
@@ -128,7 +129,7 @@ function Arena() {
         
         if(!loopback && !check_msg_id(msg)) return;
         
-        console.log('got ready', msg.count);
+        if(msg.n != self.round_number) return;
         
         if(self.round_started)
             return;
@@ -147,8 +148,17 @@ function Arena() {
     TogetherJS.hub.on('sync', function(msg) {
         if(!msg.sameUrl) return;
         if(!check_msg_id(msg)) return;
-        if(msg.id != self.player.id)
+        if(msg.id == self.enemy.id)
             self.sync_event_buffer.push(msg); 
+    });
+    
+    TogetherJS.hub.on('die', function(msg) {
+        if(!msg.sameUrl) return;
+        if(!check_msg_id(msg)) return;
+        if(msg.id == self.enemy.id) {
+            self.enemy.dead = true;
+            self.enemy.dead_time = msg.t;
+        }
     });
     
     // timeline
@@ -202,8 +212,7 @@ function Arena() {
                 var count = 3;
                 var self = this;
                 function sendReady() {
-                    console.log('send ready',count);
-                    var msg = {type:'ready',count:count,id:self.player.id};
+                    var msg = {type:'ready',count:count,n:self.round_number,id:self.player.id};
                     TogetherJS.send(msg);
                     // sometimes we cannot hear the echo
                     self.handle_ready(msg, true);
@@ -220,11 +229,14 @@ function Arena() {
         
         function(dt) {
             // round finshed
+            console.log('Round ended.', this.round_number);
             
-            console.log('Round ended.');
-            
-            this.show_message(this.round_won ? 'You win!' : 'You lose!', 2000, 1000);
+            var msg = (this.round_result > 0) ? 'You win!' 
+                : (this.round_result < 0) ? 'You lose!'
+                : 'Tie!';
+            this.show_message(msg, 2000, 1000);
             this.round_started = false;
+            ++this.round_number;
             
             if(this.player.focused) {
                 this.player.release();
@@ -240,8 +252,6 @@ function Arena() {
             
             for(var i = 0, l = this.enemy.bullets.length; i < l; ++i)
                 this.enemy.bullets[i].damage = 0;
-            
-            // TODO: set up protocol for rematching
             
             return dt;
         },
@@ -285,7 +295,7 @@ Util.extend(Arena.prototype, new Interpreter(), {
     },
         
     start_round: function() {
-        console.log('Round started.');
+        console.log('Round started.', this.round_number);
         this.round_started = true;
         this.round_start_time = Date.now();
         // last (round) time when we have received a sync message
@@ -293,6 +303,7 @@ Util.extend(Arena.prototype, new Interpreter(), {
         
         var rt = this.message_board;
         rt.alpha = 0;
+        rt.visible = false;
         createjs.Tween.removeTweens(rt);
     },
 
@@ -303,7 +314,10 @@ Util.extend(Arena.prototype, new Interpreter(), {
         var hit = false;
         for(var i = 0, l = bs.length; i < l;) {
             var b = bs[i];
-            if(b.damage == 0) continue;
+            if(b.damage == 0) {
+                ++i;
+                continue;
+            }
     
             var r = b.radius + this.player.radius;
             var dx = player.x - b.x;
@@ -329,7 +343,7 @@ Util.extend(Arena.prototype, new Interpreter(), {
       
         for(var i = 0, l = eb.length; i < l; ++i) {
             var msg = eb[i];
-            if(!msg.sameUrl)
+            if(msg.n != this.round_number)
                 continue;
           
             // need to move the boss to the opposite direction
@@ -346,7 +360,7 @@ Util.extend(Arena.prototype, new Interpreter(), {
                 e.release();
             }
         }
-        
+           
         // clear buffer
         eb.length = 0;
     },
@@ -417,6 +431,7 @@ Util.extend(Arena.prototype, new Interpreter(), {
 
     battle_mainloop: function(dt) {
         var round_time = 0;
+        var round_done = false;
         
         this.process_sync_events(dt);
         this.check_local_input(dt);
@@ -437,8 +452,39 @@ Util.extend(Arena.prototype, new Interpreter(), {
             
             this.player_hp_bar.update(dt);
             this.enemy_hp_bar.update(dt);
+            
+            if(this.player.hp <= 0 && !this.player.dead) {
+                this.player.dead = true;
+                this.player.dead_time = round_time;
+                TogetherJS.send({type:'die', id:this.player.id, n:this.round_number, t:round_time});
+            }
+            
+            if(this.enemy.dead) {
+                if(!this.player.dead) {
+                    if(round_time > this.enemy.dead_time) {
+                        this.round_result = 1;
+                        round_done = true;
+                    }
+                    // else: we are behind, just wait for more ticks
+                } else {
+                    // both dead
+                    var dt = this.player.dead_time - this.enemy.dead_time;
+                    if(Math.abs(dt) < Const.EPS)
+                        this.round_result = 0;
+                    else 
+                        this.round_result = (dt > 0) ? 1 : -1;
+                    round_done = true;
+                }
+            } else if (this.player.dead) {
+                // enemy is still alive
+                // at least accoring to the sync messages so far
+                if(this.last_sync_time > this.player.dead_time) {
+                    this.round_result = -1;
+                    round_done = true;
+                }
+            } 
         }
-        
+    
         var bc1 = this.player.bullets.length;
         var bc2 = this.player.focused_bullets.length;
         var bc3 = this.enemy.bullets.length;
@@ -456,36 +502,11 @@ Util.extend(Arena.prototype, new Interpreter(), {
                          hp:Math.round(this.player.hp),
                          id:this.player.id,
                          f:(this.player.focused ? 1 : 0),
+                         n:this.round_number,
                          t:round_time
                         });
         
-        
-        if(this.round_started) {
-            // check death after sync
-            if(this.player.hp <= 0 && !this.player.dead) {
-                this.player.dead = true;
-                this.player.dead_time = round_time;
-            }
-            if(this.enemy.hp <= 0 && !this.enemy.dead) {
-                this.enemy.dead = true;
-                this.enemy.dead_time = this.last_sync_time;
-            }
-
-            if(this.enemy.dead 
-               && ((!this.player.dead && round_time > this.enemy.dead_time)
-                   || (this.player.dead && this.player.dead_time <= this.enemy.dead_time))) {
-                this.round_won = true;
-                return dt;
-            } 
-            if(this.player.dead 
-               && ((!this.enemy.dead && this.last_sync_time > this.player.dead_time)
-                   || (this.enemy.dead && this.enemy.dead_time <= this.player.dead_time))) {
-                this.round_won = false;
-                return dt;
-            } 
-        }
-    
-        return 0;
+        return (round_done ? dt : 0);
     }, 
     
 });
