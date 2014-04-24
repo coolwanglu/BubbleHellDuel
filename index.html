@@ -36,6 +36,9 @@
         <a id="link-friend" class="btn" style="padding:0" href="#" target="_blank" title="邀请好友 | Invite a Friend">
           <img src="data/icons/appbar.user.add.svg" style="width:48px;height:48px;" >
         </a>
+        <a id="link-friend" class="btn" style="padding:0" href="https://github.com/coolwanglu/BubbleHellDuel/wiki" target="_blank" title="游戏手册 | Manual">
+          <img src="data/icons/appbar.book.perspective.help.svg" style="width:48px;height:48px;" >
+        </a>
         <div class="pull-right">
           <kbd>&#x2190;</kbd>
           <kbd>&#x2191;</kbd>
@@ -75,10 +78,8 @@
             var e1 = document.getElementById('link-friend');
             var e2 = document.getElementById('link-matching');
             if(!is_random_matching) {
-                //e1.innerHTML = 'Challenge another friend';
                 e1.classList.add('btn-success');
             } else {
-                //e2.innerHTML = 'Find another match';
                 e2.classList.add('btn-success');
             }
             e1.addEventListener('click', function() {
