@@ -13,7 +13,7 @@ Game.prototype.run = function() {
     
     this.game_container = document.getElementById('game-container');
     
-    var stage = this.stage = new createjs.Stage("game-canvas1");
+    var stage = this.stage = new createjs.Stage('game-canvas1');
     this.stage_width = stage.canvas.width;
     this.stage_height = stage.canvas.height;
     
