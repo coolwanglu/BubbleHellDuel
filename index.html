@@ -30,13 +30,13 @@
         <h2>Bubble Hell Duel</h2>
       </div>
       <div class="container" style="width:800px">
-        <a id="link-matching" class="btn" style="padding:0" href="#random_matching" target="_blank" title="随机配对 | Random Match">
+        <a id="link-matching" class="btn" style="padding:0" href="#random_matching" title="随机配对 | Random Match">
           <img src="data/icons/appbar.people.multiple.magnify.svg" style="width:48px;height:48px;" >
         </a>
-        <a id="link-friend" class="btn" style="padding:0" href="#" target="_blank" title="邀请好友 | Invite a Friend">
+        <a id="link-friend" class="btn" style="padding:0" href="#" title="邀请好友 | Invite a Friend">
           <img src="data/icons/appbar.user.add.svg" style="width:48px;height:48px;" >
         </a>
-        <a id="link-friend" class="btn" style="padding:0" href="https://github.com/coolwanglu/BubbleHellDuel/wiki" target="_blank" title="游戏手册 | Manual">
+        <a class="btn" style="padding:0" href="https://github.com/coolwanglu/BubbleHellDuel/wiki" target="_blank" title="游戏手册 | Manual">
           <img src="data/icons/appbar.book.perspective.help.svg" style="width:48px;height:48px;" >
         </a>
         <div class="pull-right">
@@ -83,10 +83,12 @@
                 e2.classList.add('btn-success');
             }
             e1.addEventListener('click', function() {
-                window.close();
+                window.location.hash = '#';
+                window.location.reload();
             });
             e2.addEventListener('click', function() {
-                window.close();
+                window.location.hash = '#random_matching';
+                window.location.reload();
             });
             
             //configure TogetherJS
