@@ -13,7 +13,7 @@ by Lu Wang
 
 by Lu Wang
  
-A Bullet Hell Versus Fighting Game
+A Bullet Hell Dogfighting Game
 
 The source code of the program is licensed by: GNU AGPL v3
 
