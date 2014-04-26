@@ -1,3 +1,5 @@
+![游戏截图 | Screenshot](http://coolwanglu.github.com/BubbleHellDuel/screenshot.png)
+
 # 珠璣訣
 
 by Lu Wang
