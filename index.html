@@ -30,11 +30,15 @@
         <h2>Bubble Hell Duel</h2>
       </div>
       <div class="container" style="width:800px">
-        <a id="link-matching" class="btn" style="padding:0" href="#random_matching" title="随机配对 | Random Match">
-          <img src="data/icons/appbar.people.multiple.magnify.svg" style="width:48px;height:48px;" >
+        <a id="link-single" class="btn" style="padding:0" href="#single-player" title="单人游戏 | Single Player">
+          <img src="data/icons/appbar.user.svg" style="width:48px;height:48px;" >
         </a>
+      
         <a id="link-friend" class="btn" style="padding:0" href="#" title="邀请好友 | Invite a Friend">
           <img src="data/icons/appbar.user.add.svg" style="width:48px;height:48px;" >
+        </a>
+        <a id="link-matching" class="btn" style="padding:0" href="#random_matching" title="随机配对 | Random Match">
+          <img src="data/icons/appbar.people.multiple.magnify.svg" style="width:48px;height:48px;" >
         </a>
         <a class="btn" style="padding:0" href="https://github.com/coolwanglu/BubbleHellDuel/wiki" target="_blank" title="游戏手册 | Manual">
           <img src="data/icons/appbar.book.perspective.help.svg" style="width:48px;height:48px;" >
@@ -74,14 +78,26 @@
     
     <script>
         (function(){
-            var is_random_matching = (location.hash.indexOf('random_matching') != -1);
+            var GameState = window.GameState = {
+                tjs_ready: false
+            };
+            
+            GameState.mode = 
+                  (location.hash.indexOf('random_matching') != -1) ? 'random_matching'
+                : (location.hash.indexOf('single_player') != -1) ? 'single_player'
+                : 'invite_friend';
+            
             var e1 = document.getElementById('link-friend');
             var e2 = document.getElementById('link-matching');
-            if(!is_random_matching) {
-                e1.classList.add('btn-success');
-            } else {
-                e2.classList.add('btn-success');
-            }
+            var e3 = document.getElementById('link-single');
+            
+            
+            ({
+                'invite_friend' : e1,
+                'random_matching' : e2,
+                'single_player' : e3
+            })[GameState.mode].classList.add('btn-success');
+            
             e1.addEventListener('click', function() {
                 window.location.hash = '#';
                 window.location.reload();
@@ -90,13 +106,12 @@
                 window.location.hash = '#random_matching';
                 window.location.reload();
             });
-            
+            e3.addEventListener('click', function() {
+                window.location.hash = '#single_player';
+                window.location.reload();
+            });
+        
             //configure TogetherJS
-            var TJS = window.TJS = {
-                ready: false
-            };
-           
-            
             var config = {
                 siteName: 'Bubble Hell Duel',
                 toolName: 'Multiplayer',
@@ -104,21 +119,22 @@
                 enableShortcut: false,
                 suppressInvite: false,
                 suppressJoinConfirmation: true,
-                disableWebRTC: true,
-                autoStart: true,
+                disableWebRTC: false,
+                autoStart: (GameState.mode != 'single_player'),
                 includeHashInUrl: false,
-                findRoom: is_random_matching ? {prefix: 'BubbleHellDuel', max:2} : null,
+                findRoom: (GameState.mode == 'random_matching') ? {prefix: 'BubbleHellDuel', max:2} : null,
                 //ignoreMessages: ['cursor-update', 'keydown', 'scroll-update', 'app.sync'],
                 ignoreMessages: true,
                 on: {
                     'ready': function() { 
-                        TJS.ready = true; 
+                        GameState.tjs_ready = true; 
                         
                         // show the link, for convenience
-                        if(!is_random_matching && !TogetherJS.startup._joinShareId)
+                        if((GameState.mode == 'invite_friend') 
+                           && !TogetherJS.startup._joinShareId)
                             document.getElementById('togetherjs-share-button').click();
                     },
-                    'close': function() { TJS.ready = false; },
+                    'close': function() { GameState.tjs_ready = false; },
                 }
             };
             for(var k in config)

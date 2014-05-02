@@ -79,7 +79,9 @@ Util.extend(Input.prototype, {
     update: function(dt) {
         if(this.gamepad_connected) {
             try {
-                var gp = navigator.webkitGetGamepads()[0];
+                var gp = navigator.getGamepads 
+                    ? navigator.getGamepads()[0]
+                    : navigator.webkitGetGamepads()[0];
                 var self = this;
                 this.gamepad_mapping.forEach(function(entry) {
                     var key = entry.key;
@@ -87,6 +89,8 @@ Util.extend(Input.prototype, {
                     var value = 0;
                     if(typeof key === 'number') {
                         value = gp.buttons[key];
+                        if(typeof value === 'object')
+                            value = value.pressed;
                     } else {
                         var v1 = key[1];
                         var v2 = gp.axes[key[0]];

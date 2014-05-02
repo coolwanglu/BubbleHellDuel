@@ -3,6 +3,8 @@
  * Copyright (C) 2014 Lu Wang <coolwanglu@gmail.com>
  */
 function Arena() {
+    this.is_single_player = (window.GameState.mode == 'single_player');
+    
     this.player = new Player({
         x: WLGame.stage_width / 2,
         y: WLGame.stage_height * 0.9,
@@ -46,6 +48,12 @@ function Arena() {
         hp:0
     });
     this.enemy.instance.visible = false;
+    
+    if(this.is_single_player) {
+        this.enemy.max_hp *= 10;
+        this.enemy.next_x = this.enemy.x;
+        this.enemy.next_y = this.enemy.y;
+    }
     
     this.player.opponent = this.enemy;
     this.enemy.opponent = this.player;
@@ -92,11 +100,10 @@ function Arena() {
  
     // protocol
     // the protocol is naive, assuming two parties trusting each other
-    
-    this.enemy_found = false;
+    this.enemy_found = this.is_single_player;
     this.round_started = false;
     this.round_number = 0;
-            
+
     var self = this;
     function check_msg_id(msg) {
         if(self.enemy_found) {
@@ -109,58 +116,68 @@ function Arena() {
             return true;
         }
     }
-  
-    TogetherJS.hub.on('ping', function (msg) {
-        // always answer to ping
-        if(!msg.sameUrl) return;
-        if(!check_msg_id(msg)) return;
-        TogetherJS.send({type:'pong', id:self.player.id}); 
-    });
-    TogetherJS.hub.on('pong', function (msg) {
-        if(!msg.sameUrl) return;
-        if(!check_msg_id(msg)) return;
-        if(self.send_ping_id) {
-            clearTimeout(self.send_ping_id);
-            self.send_ping_id = null;
-        }
-    });
+
     this.handle_ready = function(msg, loopback) {
         if(!loopback && !msg.sameUrl) return;
-        
+
         if(!loopback && !check_msg_id(msg)) return;
-        
+
         if(msg.n != self.round_number) return;
-        
+
         if(self.round_started)
             return;
-        
+
         // although there are many ready message
         // it's fine since only the first call will initiate the animation
         self.reset_hp();
-        
+
         if(msg.count == -1) {
             self.start_round();
         } else {
             self.show_message(((msg.count == 0) ? 'Fight!' : msg.count), 0, 500);
         }
     }
-    TogetherJS.hub.on('ready', this.handle_ready);
-    TogetherJS.hub.on('sync', function(msg) {
-        if(!msg.sameUrl) return;
-        if(!check_msg_id(msg)) return;
-        if(msg.id == self.enemy.id)
-            self.sync_event_buffer.push(msg); 
-    });
+
+    if(!this.is_single_player) {
+        TogetherJS.hub.on('ping', function (msg) {
+            // always answer to ping
+            if(!msg.sameUrl) return;
+            if(!check_msg_id(msg)) return;
+            TogetherJS.send({type:'pong', id:self.player.id}); 
+        });
+        TogetherJS.hub.on('pong', function (msg) {
+            if(!msg.sameUrl) return;
+            if(!check_msg_id(msg)) return;
+            if(self.send_ping_id) {
+                clearTimeout(self.send_ping_id);
+                self.send_ping_id = null;
+            }
+        });
+        TogetherJS.hub.on('ready', this.handle_ready);
+        TogetherJS.hub.on('sync', function(msg) {
+            if(!msg.sameUrl) return;
+            if(!check_msg_id(msg)) return;
+            if(msg.id == self.enemy.id)
+                self.sync_event_buffer.push(msg); 
+        });
+    }
     
     // timeline
     var L = {
         get_ready: -1,
+        wait_for_enemy: -2
     };
     
     Interpreter.call(this, [
         function(dt) {
+            if(this.is_single_player)
+                this.goto_label(L.wait_for_enemy);
+            return dt;
+        },
+        
+        function(dt) {
             // wait for togetherjs
-            return window.TJS.ready ? dt : 0;
+            return window.GameState.tjs_ready ? dt : 0;
         },
         
         function(dt) {
@@ -176,7 +193,8 @@ function Arena() {
             
             return dt;
         },
-    
+        
+        L.wait_for_enemy,
         function(dt) {
             // wait for enemy
             if(this.enemy_found) {
@@ -199,12 +217,13 @@ function Arena() {
         L.get_ready,
         function(dt) {
             //Initiate the game
-            if(this.player.id > this.enemy.id) {
+            if(this.is_single_player || this.player.id > this.enemy.id) {
                 var count = 3;
                 var self = this;
                 function sendReady() {
                     var msg = {type:'ready',count:count,n:self.round_number,id:self.player.id};
-                    TogetherJS.send(msg);
+                    if(!self.is_single_player)
+                        TogetherJS.send(msg);
                     // sometimes we cannot hear the echo
                     self.handle_ready(msg, true);
                     --count;
@@ -294,10 +313,9 @@ Util.extend(Arena.prototype, new Interpreter(), {
         createjs.Tween.removeTweens(rt);
     },
 
-    check_player_hit: function() {
-        var player = this.player;
-        var minr = this.enemy.bullet_min_radius;
-        var bs = this.enemy.bullets;
+    check_hit: function(player) {
+        var minr = player.opponent.bullet_min_radius;
+        var bs = player.opponent.bullets;
         var hit = false;
         for(var i = 0, l = bs.length; i < l;) {
             var b = bs[i];
@@ -306,11 +324,11 @@ Util.extend(Arena.prototype, new Interpreter(), {
                 continue;
             }
     
-            var r = b.radius + this.player.radius;
+            var r = b.radius + player.radius;
             var dx = player.x - b.x;
             var dy = player.y - b.y;
             if(dx * dx + dy * dy < r * r) {
-                this.player.hp -= b.damage;
+                player.hp -= b.damage;
                 b.off_stage();
                 b.recycle();
                 hit = true;
@@ -394,6 +412,28 @@ Util.extend(Arena.prototype, new Interpreter(), {
             }
         }
     },
+    move_enemy: function(dt) {
+        var enemy = this.enemy;
+        enemy.shoot_direction += enemy.shoot_angular_speed * dt;
+        while(enemy.shoot_direction > Math.PI * 2)
+            enemy.shoot_direction -= Math.PI * 2;
+    
+        var dx = enemy.next_x - enemy.x;
+        var dy = enemy.next_y - enemy.y;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+        var max_move_distance = enemy.move_speed * dt;
+    
+        if(distance < max_move_distance) {
+            enemy.x = enemy.next_x;
+            enemy.y = enemy.next_y;
+            enemy.next_x = Math.random() * WLGame.stage_width;
+            enemy.next_y = Math.random() * WLGame.stage_height;
+        } else {
+            var d = max_move_distance / distance;
+            enemy.x += dx * d;
+            enemy.y += dy * d;
+        }
+    },
         
     show_message: function(msg, duration, fade_time) {
         var rt = this.message_board;
@@ -425,7 +465,10 @@ Util.extend(Arena.prototype, new Interpreter(), {
         var round_time = 0;
         var round_done = false;
         
-        this.process_sync_events(dt);
+        if(this.is_single_player)
+            this.process_sync_events(dt);
+        
+        
         this.check_local_input(dt);
         
         this.player.update(dt);
@@ -440,16 +483,27 @@ Util.extend(Arena.prototype, new Interpreter(), {
             this.player.shoot(dt);
             this.enemy.shoot(dt);
             
-            this.check_player_hit();
-            
-            this.player_hp_bar.update(dt);
-            this.enemy_hp_bar.update(dt);
-            
+            this.check_hit(this.player);
+               
             if(this.player.hp <= 0 && !this.player.dead) {
                 this.player.dead = true;
                 this.player.dead_time = round_time;
             }
             
+            if(this.is_single_player) {
+                this.last_sync_time = round_time;
+                this.move_enemy(dt);
+                this.check_hit(this.enemy);
+                if(this.enemy.hp <= 0 && !this.enemy.dead) {
+                    this.enemy.dead = true;
+                    this.enemy.dead_time = round_time;
+                }
+            }
+
+            
+            this.player_hp_bar.update(dt);
+            this.enemy_hp_bar.update(dt);
+         
             if(this.enemy.dead) {
                 if(!this.player.dead) {
                     if(round_time > this.enemy.dead_time) {
@@ -487,20 +541,22 @@ Util.extend(Arena.prototype, new Interpreter(), {
             + '\nHP2: ' + this.enemy.hp.toFixed(2)
         ;
         
-        var msg = {
-            type:'sync', 
-            x:Math.round(this.player.x), 
-            y:Math.round(this.player.y), 
-            d:Math.round(this.player.shoot_direction * 1000)/1000,
-            hp:Math.round(this.player.hp),
-            id:this.player.id,
-            f:(this.player.focused ? 1 : 0),
-            n:this.round_number,
-            t:round_time
-        };
-        if(this.player.dead)
-            msg.dt = this.player.dead_time;
-        TogetherJS.send(msg);
+        if(!this.is_single_player) {
+            var msg = {
+                type:'sync', 
+                x:Math.round(this.player.x), 
+                y:Math.round(this.player.y), 
+                d:Math.round(this.player.shoot_direction * 1000)/1000,
+                hp:Math.round(this.player.hp),
+                id:this.player.id,
+                f:(this.player.focused ? 1 : 0),
+                n:this.round_number,
+                t:round_time
+            };
+            if(this.player.dead)
+                msg.dt = this.player.dead_time;
+            TogetherJS.send(msg);
+        }
         
         return (round_done ? dt : 0);
     }, 
