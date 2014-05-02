@@ -465,7 +465,7 @@ Util.extend(Arena.prototype, new Interpreter(), {
         var round_time = 0;
         var round_done = false;
         
-        if(this.is_single_player)
+        if(!this.is_single_player)
             this.process_sync_events(dt);
         
         
